@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pathlib import Path
 
 # สร้าง instance ของ FastAPI
 app = FastAPI(
@@ -11,30 +11,33 @@ app = FastAPI(
     redoc_url=None,
 )
 
-# 1. Mount StaticFiles สำหรับ Landing Page
-# **สำคัญ:** ต้อง Mount ก่อน Route อื่นๆ ทั้งหมด เพื่อให้ "/" ถูกจับโดย StaticFiles
-# directory="static" คือโฟลเดอร์ที่เก็บ index.html
-# html=True คือการบอกให้ StaticFiles เสิร์ฟ index.html เมื่อเข้าถึง /
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# กำหนดพาธไปยังโฟลเดอร์ static
+STATIC_DIR = Path("static")
+
+# 1. Route สำหรับ Landing Page (Root URL)
+# **สำคัญ:** เราจะใช้ HTMLResponse เพื่ออ่านไฟล์ index.html โดยตรง
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def read_root():
+    """
+    Serves the static index.html landing page at the root URL.
+    """
+    index_path = STATIC_DIR / "index.html"
+    if not index_path.exists():
+        return HTMLResponse("<h1>Error: index.html not found in static folder.</h1>", status_code=500)
+    
+    with open(index_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
 
 # 2. Route สำหรับ API (ตัวอย่าง)
 @app.get("/api/status", tags=["default"])
 def get_status():
     """
-    Read Status
+    Get Status
     """
     return {"status": "ok", "message": "AEGIS FIT API is running."}
 
-# 3. Route พิเศษสำหรับ Redirect /docs
-# เนื่องจากเรา Mount StaticFiles ที่ "/" ทำให้ /docs ถูก StaticFiles จับไปด้วย
-# เราจึงต้องเพิ่ม Route นี้เพื่อบังคับให้ /docs แสดงหน้าเอกสาร API
+# 3. Route สำหรับ Redirect /docs (เพื่อให้เข้าถึงได้ง่าย)
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
-    return RedirectResponse(url="/docs")
-
-# 4. Route พิเศษสำหรับ Redirect /redoc (ถ้าต้องการ)
-# @app.get("/redoc", include_in_schema=False)
-# async def redoc_html():
-#     return RedirectResponse(url="/redoc")
-
-# หมายเหตุ: หากต้องการเพิ่ม Route API อื่นๆ ให้เพิ่มต่อจากนี้
+    return RedirectResponse(url=app.docs_url)
